@@ -5,9 +5,10 @@ import path from 'node:path';
 import {getPlaiceholder} from 'plaiceholder';
 import * as R from 'remeda';
 import sharp from 'sharp';
-import {TaskError} from './errors';
+import {HttpError, TaskError} from './errors';
 import {http} from './http';
 import {lazyLoaded} from './lazy';
+import {MISSING_LINKS} from './missing';
 import type {CardFile} from './schemas';
 
 const PATCHED_URLS: Record<string, string> = {
@@ -41,15 +42,23 @@ export async function fetchAndStoreImageAndBlur(props: Props) {
 	await fsp.mkdir(path.dirname(filePath), {recursive: true});
 	const exists = fs.existsSync(filePath);
 	if (!exists) {
-		await http(
-			PATCHED_URLS[props.url] ?? props.url,
-			{
-				map: (r) => r.arrayBuffer().then((ab) => Buffer.from(ab)),
-				assert: (b) =>
-					assert.ok(b.length, `${props.url} returned empty buffer!`),
-			},
-			{retry: {retries: 5, timeoutMs: 60_000}},
-		).then((b) => sharp(b).webp({quality: 80}).toFile(filePath));
+		try {
+			await http(
+				PATCHED_URLS[props.url] ?? props.url,
+				{
+					map: (r) => r.arrayBuffer().then((ab) => Buffer.from(ab)),
+					assert: (b) =>
+						assert.ok(b.length, `${props.url} returned empty buffer!`),
+				},
+				{retry: {retries: 5, timeoutMs: 60_000}},
+			).then((b) => sharp(b).webp({quality: 80}).toFile(filePath));
+		} catch (e) {
+			if (e instanceof HttpError && e.status === 404) {
+				MISSING_LINKS.push(props.url);
+			}
+
+			throw e;
+		}
 	}
 
 	const buf = await fsp.readFile(filePath);

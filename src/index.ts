@@ -3,6 +3,7 @@ import {inspect} from 'node:util';
 import {TaskError} from './errors';
 import {http} from './http';
 import {prefetchImagesForCards} from './image';
+import {MISSING_LINKS} from './missing';
 import {CardFileSchema, type PokemonSet, PokemonSetFileSchema} from './schemas';
 
 const setUrl = new URL(
@@ -38,6 +39,17 @@ try {
 	);
 	process.exit(0);
 } catch (e) {
-	console.error(inspect(e, {depth: 100, colors: false}));
+	if (e instanceof TaskError) {
+		for (const error of e.innerExceptions) {
+			console.error(inspect(error, {depth: 100, colors: false}));
+		}
+	} else {
+		console.error(inspect(e, {depth: 100, colors: false}));
+	}
+
+	console.error(
+		'MISSING_LINKS',
+		inspect(MISSING_LINKS, {depth: 100, colors: false}),
+	);
 	process.exit(1);
 }
