@@ -1,5 +1,6 @@
-import * as R from 'remeda';
-import {toError} from './errors';
+import assert from 'node:assert';
+import {inspect} from 'node:util';
+import {TaskError} from './errors';
 import {http} from './http';
 import {prefetchImagesForCards} from './image';
 import {CardFileSchema, type PokemonSet, PokemonSetFileSchema} from './schemas';
@@ -10,36 +11,33 @@ const setUrl = new URL(
 
 const baseCardUrl = `https://raw.githubusercontent.com/remirth/pokemon-tcg-data/master/cards/en/`;
 
+let i = 0;
+let j = 0;
 async function fetchAndLoadCardImages(set: PokemonSet) {
-	try {
-		const cardsUrl = `${baseCardUrl}${set.id}`;
-		const cards = await http(cardsUrl)
-			.then((res) => res.json())
-			.then(CardFileSchema.assert);
+	const cardsUrl = `${baseCardUrl}${set.id}.json`;
+	const cards = await http(cardsUrl, {
+		map: (res) => res.json().then(CardFileSchema.assert),
+		assert: (c) => assert.ok(c),
+	});
 
-		console.log('Loaded cards for', set.id);
-
-		await prefetchImagesForCards(set.id, cards);
-		console.log('Loaded images for', set.id);
-	} catch (e) {
-		console.error('Failed to load images for', set.id, e);
-		throw e;
-	}
+	console.log('Sets fetched', ++i);
+	await prefetchImagesForCards(set.id, cards);
+	console.log('Sets loaded', ++j, set.id);
 }
 
 console.log('Fetching sets!');
-const sets = await http(setUrl)
-	.then((r) => r.json())
-	.then(PokemonSetFileSchema.assert);
+const sets = await http(setUrl, {
+	map: (res) => res.json().then(PokemonSetFileSchema.assert),
+	assert: (c) => assert.ok(c),
+});
 console.log('Got sets:', sets.length);
 
-const failed = await Promise.allSettled(sets.map(fetchAndLoadCardImages)).then(
-	R.piped(
-		R.filter((task) => task.status === 'rejected'),
-		R.map(R.prop('reason')),
-		R.map(toError),
-	),
-);
-
-failed.length && console.warn(failed);
-process.exit(failed.length);
+try {
+	await Promise.allSettled(sets.map(fetchAndLoadCardImages)).then(
+		TaskError.pipedAssert('Failed to fetch and load card images!'),
+	);
+	process.exit(0);
+} catch (e) {
+	console.error(inspect(e, {depth: 100, colors: false}));
+	process.exit(1);
+}

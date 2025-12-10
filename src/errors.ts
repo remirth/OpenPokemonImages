@@ -42,6 +42,34 @@ export class AppError extends Error {
 	}
 }
 
+export class TaskError extends AppError {
+	static readonly assert = <T>(
+		message: string,
+		tasks: Array<PromiseSettledResult<T>>,
+	): Array<T> => {
+		const exceptions: Array<unknown> = [];
+		const results: Array<T> = [];
+		for (const task of tasks) {
+			if (task.status === 'fulfilled') {
+				results.push(task.value);
+			} else {
+				exceptions.push(task.reason);
+			}
+		}
+
+		if (exceptions.length) {
+			throw new TaskError(message, exceptions);
+		}
+
+		return results;
+	};
+
+	static readonly pipedAssert = (message: string) => {
+		return <T>(tasks: Array<PromiseSettledResult<T>>) =>
+			this.assert(message, tasks);
+	};
+}
+
 export class FetchError extends AppError {
 	constructor(url: string | URL, e?: unknown) {
 		super(`Failed to connect to ${url}`, e);
@@ -59,12 +87,7 @@ export class HttpError extends AppError {
 	}
 
 	static readonly fromResponse = async (name: string, response: Response) => {
-		return new HttpError(
-			name,
-			response.url,
-			response.status,
-			await response.text(),
-		);
+		return new HttpError(name, response.url, response.status, '');
 	};
 
 	static readonly test = async (
@@ -72,12 +95,7 @@ export class HttpError extends AppError {
 		name?: string,
 	): Promise<Response & {ok: true}> => {
 		if (!response.ok) {
-			throw new HttpError(
-				name ?? 'Unnamed',
-				response.url,
-				response.status,
-				await response.text(),
-			);
+			throw new HttpError(name ?? 'Unnamed', response.url, response.status, '');
 		}
 
 		return response as never;

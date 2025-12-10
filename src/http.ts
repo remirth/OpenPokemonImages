@@ -1,4 +1,9 @@
+import {AssertionError} from 'node:assert';
+import pLimit from 'p-limit';
+import * as R from 'remeda';
 import {FetchError, HttpError, toError} from './errors';
+
+const requestLimiter = pLimit(50);
 
 type HttpRetryOptions = {
 	retries?: number; // total attempts = retries + 1
@@ -76,6 +81,10 @@ function shouldRetry({
 	retryOnMethods: string[];
 	retryOnHttpStatus: number[];
 }): boolean {
+	if (err instanceof HttpError && err.status === 404) {
+		return false;
+	}
+
 	const m = method.toUpperCase();
 	if (!retryOnMethods.includes(m)) return false;
 
@@ -84,7 +93,8 @@ function shouldRetry({
 		// AbortError or TypeError (failed fetch) are retryable
 		if (
 			(err instanceof DOMException && err.name === 'AbortError') ||
-			err instanceof TypeError
+			err instanceof TypeError ||
+			err instanceof AssertionError
 		) {
 			return true;
 		}
@@ -97,11 +107,19 @@ function shouldRetry({
 	return false;
 }
 
+type HttpCallbacks<T> = {
+	map: (r: Response) => Promise<T>;
+	assert: (r: T) => unknown;
+};
 // You can thread options through `init` via a custom field `retry`
 // without mutating the Fetch API types (TS will allow indexing).
 type HttpInit = RequestInit & {retry?: HttpRetryOptions; timeoutMs?: number};
 
-export async function http(url: string | URL, init?: HttpInit) {
+export async function http<T>(
+	url: string | URL,
+	callbacks: HttpCallbacks<T>,
+	init?: HttpInit,
+) {
 	const {
 		retry: retryOptsInput,
 		timeoutMs: timeoutOverride, // alias sugar
@@ -136,7 +154,10 @@ export async function http(url: string | URL, init?: HttpInit) {
 		);
 
 		try {
-			const r = await fetch(url, {...restInit, signal}).then(HttpError.test);
+			const r = await requestLimiter(() => fetch(url, {...restInit, signal}))
+				.then(HttpError.test)
+				.then(callbacks.map)
+				.then(R.tap(callbacks.assert));
 
 			// Success path
 			clearTimeout(timeoutId);

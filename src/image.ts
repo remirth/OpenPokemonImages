@@ -1,10 +1,11 @@
-import {createHash} from 'node:crypto';
+import assert from 'node:assert';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import {getPlaiceholder} from 'plaiceholder';
 import * as R from 'remeda';
 import sharp from 'sharp';
+import {TaskError} from './errors';
 import {http} from './http';
 import {lazyLoaded} from './lazy';
 import type {CardFile} from './schemas';
@@ -15,10 +16,6 @@ const PATCHED_URLS: Record<string, string> = {
 	'https://images.pokemontcg.io/ex5/102_hires.png':
 		'https://den-cards.pokellector.com/56/Groudon.HL.102.png',
 };
-
-export function hashSha256(input: string) {
-	return createHash('sha256').update(input, 'utf8').digest('hex');
-}
 
 async function getBlur(buffer: Buffer) {
 	return getPlaiceholder(buffer, {size: 8, format: ['webp']}).then(
@@ -44,13 +41,19 @@ export async function fetchAndStoreImageAndBlur(props: Props) {
 	await fsp.mkdir(path.dirname(filePath), {recursive: true});
 	const exists = fs.existsSync(filePath);
 	if (!exists) {
-		await http(PATCHED_URLS[props.url] ?? props.url, {retry: {retries: 10}})
-			.then((r) => r.arrayBuffer())
-			.then((ab) => Buffer.from(ab))
-			.then((b) => sharp(b).webp({quality: 80}).toFile(filePath));
+		await http(
+			PATCHED_URLS[props.url] ?? props.url,
+			{
+				map: (r) => r.arrayBuffer().then((ab) => Buffer.from(ab)),
+				assert: (b) =>
+					assert.ok(b.length, `${props.url} returned empty buffer!`),
+			},
+			{retry: {retries: 5, timeoutMs: 60_000}},
+		).then((b) => sharp(b).webp({quality: 80}).toFile(filePath));
 	}
 
-	const buf = await fsp.readFile(filePath).then((b) => Buffer.from(b));
+	const buf = await fsp.readFile(filePath);
+	assert.ok(buf.length, `File at ${filePath} returned a zero length buffer!`);
 
 	const blurPath = path.join(
 		path.dirname(filePath),
@@ -69,7 +72,7 @@ function createPokedexUrl(pokedexNumber: number) {
 }
 
 export async function prefetchImagesForCards(set: string, cards: CardFile) {
-	await Promise.all(
+	await Promise.allSettled(
 		cards.map(async (card) => {
 			const tasks = [];
 			tasks.push(
@@ -109,7 +112,9 @@ export async function prefetchImagesForCards(set: string, cards: CardFile) {
 				);
 			}
 
-			await Promise.all(tasks);
+			await Promise.allSettled(tasks).then(
+				TaskError.pipedAssert(`Failed to load images for card: ${card.id}`),
+			);
 		}),
-	);
+	).then(TaskError.pipedAssert(`Failed to load cards for set: ${set}`));
 }
