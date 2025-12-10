@@ -1,6 +1,6 @@
 {
   "name": "openpokemonimages",
-  "module": "index.ts",
+  "module": "src/index.ts",
   "type": "module",
   "private": true,
   "scripts": {
@@ -12,5 +12,11 @@
   },
   "peerDependencies": {
     "typescript": "^5"
+  },
+  "dependencies": {
+    "arktype": "^2.1.28",
+    "plaiceholder": "^3.0.0",
+    "remeda": "^2.32.0",
+    "sharp": "^0.34.5"
   }
 }
