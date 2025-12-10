@@ -12,8 +12,10 @@ const setUrl = new URL(
 
 const baseCardUrl = `https://raw.githubusercontent.com/remirth/pokemon-tcg-data/master/cards/en/`;
 
-let i = 0;
-let j = 0;
+let setsFetched = 0;
+let setsComplete = 0;
+let setsFailed = 0;
+
 async function fetchAndLoadCardImages(set: PokemonSet) {
 	const cardsUrl = `${baseCardUrl}${set.id}.json`;
 	const cards = await http(cardsUrl, {
@@ -21,9 +23,16 @@ async function fetchAndLoadCardImages(set: PokemonSet) {
 		assert: (c) => assert.ok(c),
 	});
 
-	console.log('Sets fetched', ++i);
-	await prefetchImagesForCards(set.id, cards);
-	console.log('Sets loaded', ++j, set.id);
+	console.log('Sets fetched', ++setsFetched);
+	try {
+		await prefetchImagesForCards(set.id, cards);
+		console.log('Sets complete', ++setsComplete, set.id);
+	} catch (e) {
+		console.log('Sets failed', ++setsFailed);
+		throw e;
+	} finally {
+		console.log('Sets attempted', setsFailed + setsComplete);
+	}
 }
 
 console.log('Fetching sets!');
