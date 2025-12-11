@@ -49,9 +49,9 @@ try {
 	process.exit(0);
 } catch (e) {
 	if (e instanceof TaskError) {
-		for (const error of e.innerExceptions) {
-			console.error(inspect(error, {depth: 100, colors: false}));
-		}
+		e.traverse((error) =>
+			console.error(inspect(error, {depth: 100, colors: false})),
+		);
 	} else {
 		console.error(inspect(e, {depth: 100, colors: false}));
 	}
@@ -60,5 +60,14 @@ try {
 		'MISSING_LINKS',
 		inspect(MISSING_LINKS, {depth: 100, colors: false}),
 	);
+
+	await Bun.write(
+		'logs/missing_links.json',
+		JSON.stringify(MISSING_LINKS, null, 2),
+		{
+			createPath: true,
+		},
+	);
+
 	process.exit(1);
 }

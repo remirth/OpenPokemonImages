@@ -50,7 +50,7 @@ export async function fetchAndStoreImageAndBlur(props: Props) {
 					assert: (b) =>
 						assert.ok(b.length, `${props.url} returned empty buffer!`),
 				},
-				{retry: {retries: 5, timeoutMs: 5_000}},
+				{retry: {retries: 10, timeoutMs: 5_000}},
 			).then((b) => sharp(b).webp({quality: 80}).toFile(filePath));
 		} catch (e) {
 			if (e instanceof HttpError && e.status === 404) {
