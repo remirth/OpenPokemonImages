@@ -7,155 +7,161 @@ import * as R from 'remeda';
  * @returns {Error} - The value if it is an error, otherwise a new error with the value as the message.
  */
 export function toError<T, E extends Error = Error>(from: T | E): Error {
-  if (from instanceof Error) {
-    return from;
-  }
+	if (from instanceof Error) {
+		return from;
+	}
 
-  return new AppError(JSON.stringify(from));
+	return new AppError(JSON.stringify(from));
 }
 
 export class AppError extends Error {
-  readonly traceId = globalThis.crypto.randomUUID();
-  readonly innerExceptions: Error[];
+	readonly traceId = globalThis.crypto.randomUUID();
+	readonly innerExceptions: Error[];
 
-  constructor(message: string, innerException?: unknown) {
-    super(message ?? 'Unidentified Error');
-    const name = this.constructor.name;
-    this.name = name;
+	constructor(message: string, innerException?: unknown) {
+		super(message ?? 'Unidentified Error');
+		const name = this.constructor.name;
+		this.name = name;
 
-    if (Array.isArray(innerException)) {
-      this.innerExceptions = innerException.map(toError);
-    } else {
-      this.innerExceptions =
-        innerException != null ? [toError(innerException)] : [];
-    }
-  }
+		if (Array.isArray(innerException)) {
+			this.innerExceptions = innerException.map(toError);
+		} else {
+			this.innerExceptions =
+				innerException != null ? [toError(innerException)] : [];
+		}
+	}
 
-  toJSON() {
-    return Object.getOwnPropertyNames(this).reduce(
-      (acc, k) => {
-        acc[k] = this[k as keyof this];
-        return acc;
-      },
-      {} as Record<PropertyKey, unknown>,
-    );
-  }
+	toJSON() {
+		return Object.getOwnPropertyNames(this).reduce(
+			(acc, k) => {
+				acc[k] = this[k as keyof this];
+				return acc;
+			},
+			{} as Record<PropertyKey, unknown>,
+		);
+	}
 }
 
 export class TaskError extends AppError {
-  static readonly assert = <T>(
-    message: string,
-    tasks: Array<PromiseSettledResult<T>>,
-  ): Array<T> => {
-    const exceptions: Array<unknown> = [];
-    const results: Array<T> = [];
-    for (const task of tasks) {
-      if (task.status === 'fulfilled') {
-        results.push(task.value);
-      } else {
-        exceptions.push(task.reason);
-      }
-    }
+	static readonly assert = <T>(
+		message: string,
+		tasks: Array<PromiseSettledResult<T>>,
+	): Array<T> => {
+		const exceptions: Array<unknown> = [];
+		const results: Array<T> = [];
+		for (const task of tasks) {
+			if (task.status === 'fulfilled') {
+				results.push(task.value);
+			} else {
+				exceptions.push(task.reason);
+			}
+		}
 
-    if (exceptions.length) {
-      throw new TaskError(message, exceptions);
-    }
+		if (exceptions.length) {
+			throw new TaskError(message, exceptions);
+		}
 
-    return results;
-  };
+		return results;
+	};
 
-  readonly traverse = (cb: ((e: Error) => void)) => {
-    for (let i = 0; i < this.innerExceptions.length; ++i) {
-      const error = NotInitializedError.test(`Error at index ${i},`, this.innerExceptions[i])
-      if (error instanceof TaskError) {
-        error.traverse(cb);
-      } else {
-        cb(error);
-      }
-    }
-  }
+	readonly traverse = (cb: (e: Error) => void) => {
+		for (let i = 0; i < this.innerExceptions.length; ++i) {
+			const error = NotInitializedError.test(
+				`Error at index ${i},`,
+				this.innerExceptions[i],
+			);
+			if (error instanceof TaskError) {
+				error.traverse(cb);
+			} else {
+				cb(error);
+			}
+		}
+	};
 
-  static readonly pipedAssert = (message: string) => {
-    return <T>(tasks: Array<PromiseSettledResult<T>>) =>
-      this.assert(message, tasks);
-  };
+	static readonly pipedAssert = (message: string) => {
+		return <T>(tasks: Array<PromiseSettledResult<T>>) =>
+			this.assert(message, tasks);
+	};
 }
 
 export class FetchError extends AppError {
-  constructor(url: string | URL, e?: unknown) {
-    super(`Failed to connect to ${url}`, e);
-  }
+	constructor(
+		readonly url: string | URL,
+		e?: unknown,
+	) {
+		super(`Failed to connect to ${url}`, e);
+	}
 }
 
 export class HttpError extends AppError {
-  constructor(
-    readonly requestName: string,
-    readonly url: string,
-    readonly status: number,
-    readonly text: string,
-  ) {
-    super(`Request ${requestName} to ${url} failed. ${status}: ${text}`);
-  }
+	constructor(
+		readonly requestName: string,
+		readonly url: string,
+		readonly status: number,
+		readonly text: string,
+	) {
+		super(`Request ${requestName} to ${url} failed. ${status}: ${text}`);
+	}
 
-  static readonly fromResponse = async (name: string, response: Response) => {
-    return new HttpError(name, response.url, response.status, '');
-  };
+	static readonly fromResponse = async (name: string, response: Response) => {
+		return new HttpError(name, response.url, response.status, '');
+	};
 
-  static readonly test = async (
-    response: Response,
-    name?: string,
-  ): Promise<Response & { ok: true }> => {
-    if (!response.ok) {
-      throw new HttpError(name ?? 'Unnamed', response.url, response.status, '');
-    }
+	static readonly test = async (
+		response: Response,
+		name?: string,
+	): Promise<Response & {ok: true}> => {
+		if (!response.ok) {
+			throw new HttpError(name ?? 'Unnamed', response.url, response.status, '');
+		}
 
-    return response as never;
-  };
+		return response as never;
+	};
 }
 
 export class NotInitializedError extends AppError {
-  constructor(name: string) {
-    super(`${name} is not initialized`);
-  }
+	constructor(name: string) {
+		super(`${name} is not initialized`);
+	}
 
-  static test<T>(name: string, value: T | undefined | null): NonNullable<T> {
-    if (value == null) {
-      console.debug(name, 'is null!');
-      throw new NotInitializedError(name);
-    }
+	static test<T>(name: string, value: T | undefined | null): NonNullable<T> {
+		if (value == null) {
+			console.debug(name, 'is null!');
+			throw new NotInitializedError(name);
+		}
 
-    return value;
-  }
+		return value;
+	}
 
-  static assert<T>(
-    name: string,
-    value: T | undefined | null,
-  ): asserts value is T {
-    if (value == null) {
-      console.debug(name, 'is null!');
-      throw new NotInitializedError(name);
-    }
-  }
+	static assert<T>(
+		name: string,
+		value: T | undefined | null,
+	): asserts value is T {
+		if (value == null) {
+			console.debug(name, 'is null!');
+			throw new NotInitializedError(name);
+		}
+	}
 }
 
 export function stringifyError<TError extends Error>(e: TError): string {
-  return R.pipe(e, errorToObj, JSON.stringify);
+	return R.pipe(e, errorToObj, JSON.stringify);
 }
 
 export type ObjOf<T> = {
-  [K in keyof T]: T[K];
+	[K in keyof T]: T[K];
 };
 
 export function errorToObj<TError extends Error>(e: TError): ObjOf<TError> {
-  return R.pipe(
-    e,
-    Object.getOwnPropertyNames,
-    R.reduce(
-      (acc, k) => {
-        acc[k] = e[k as keyof TError];
-        return acc;
-      },
-      {} as Record<PropertyKey, unknown>,
-    ),
-  ) as never;
+	return R.pipe(
+		e,
+		Object.getOwnPropertyNames,
+		R.reduce(
+			(acc, k) => {
+				acc[k] = e[k as keyof TError];
+				return acc;
+			},
+			{} as Record<PropertyKey, unknown>,
+		),
+	) as never;
 }

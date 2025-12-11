@@ -3,6 +3,7 @@ import {inspect} from 'node:util';
 import {TaskError} from './errors';
 import {http} from './http';
 import {prefetchImagesForCards} from './image';
+import {lazyLoaded} from './lazy';
 import {MISSING_LINKS} from './missing';
 import {CardFileSchema, type PokemonSet, PokemonSetFileSchema} from './schemas';
 
@@ -12,62 +13,89 @@ const setUrl = new URL(
 
 const baseCardUrl = `https://raw.githubusercontent.com/remirth/pokemon-tcg-data/master/cards/en/`;
 
-let setsFetched = 0;
-let setsComplete = 0;
 let setsFailed = 0;
+const setsComplete = new Set<string>();
 
 async function fetchAndLoadCardImages(set: PokemonSet) {
 	const cardsUrl = `${baseCardUrl}${set.id}.json`;
-	const cards = await http(cardsUrl, {
-		map: (res) => res.json().then(CardFileSchema.assert),
-		assert: (c) => assert.ok(c),
-	});
+	const cards = await lazyLoaded(set.id, () =>
+		http(cardsUrl, {
+			map: (res) => res.json().then(CardFileSchema.assert),
+			assert: (c) => assert.ok(c),
+		}),
+	);
 
-	console.log('Sets fetched', ++setsFetched);
 	try {
 		await prefetchImagesForCards(set.id, cards);
-		console.log('Sets complete', ++setsComplete, set.id);
+		setsComplete.add(set.id);
+		console.log('Sets complete', setsComplete.size);
 	} catch (e) {
-		console.log('Sets failed', ++setsFailed);
+		console.log('Sets failed', ++setsFailed, set.id);
 		throw e;
 	} finally {
-		console.log('Sets attempted', setsFailed + setsComplete);
+		console.log('Sets attempted', setsFailed + setsComplete.size);
 	}
 }
 
-console.log('Fetching sets!');
-const sets = await http(setUrl, {
-	map: (res) => res.json().then(PokemonSetFileSchema.assert),
-	assert: (c) => assert.ok(c),
-});
-console.log('Got sets:', sets.length);
-
-try {
-	await Promise.allSettled(sets.map(fetchAndLoadCardImages)).then(
-		TaskError.pipedAssert('Failed to fetch and load card images!'),
+async function loadSets() {
+	console.log('Fetching sets!');
+	const sets = await lazyLoaded('sets', () =>
+		http(setUrl, {
+			map: (res) => res.json().then(PokemonSetFileSchema.assert),
+			assert: (c) => assert.ok(c),
+		}),
 	);
-	process.exit(0);
-} catch (e) {
-	if (e instanceof TaskError) {
-		e.traverse((error) =>
-			console.error(inspect(error, {depth: 100, colors: false})),
-		);
-	} else {
-		console.error(inspect(e, {depth: 100, colors: false}));
+	console.log('Got sets:', sets.length);
+	const tasks = [];
+	for (const set of sets) {
+		console.log('Fetching', set.id);
+		const current = await Promise.allSettled([fetchAndLoadCardImages(set)]);
+		tasks.push(...current);
 	}
 
-	console.error(
-		'MISSING_LINKS',
-		inspect(MISSING_LINKS, {depth: 100, colors: false}),
-	);
+	TaskError.assert('Failed to fetch and load card images!', tasks);
+}
+
+async function main() {
+	let exitCode = 1;
+	let errorCount = 0;
+	const MAX_ITER = 100;
+	let requiredAttempts = 0;
+	for (let i = 0; i < MAX_ITER; ++i) {
+		requiredAttempts++;
+		try {
+			await loadSets();
+			exitCode = 0;
+			i += MAX_ITER;
+		} catch (e) {
+			if (e instanceof TaskError) {
+				e.traverse((error) => {
+					console.error(inspect(error, {depth: 100, colors: false}));
+					errorCount++;
+				});
+			} else {
+				console.error(inspect(e, {depth: 100, colors: false}));
+				errorCount++;
+			}
+
+			console.error(
+				'MISSING_LINKS',
+				inspect(MISSING_LINKS, {depth: 100, colors: false}),
+			);
+
+			await Bun.sleep(10_000);
+		}
+	}
 
 	await Bun.write(
-		'logs/missing_links.json',
-		JSON.stringify(MISSING_LINKS, null, 2),
+		'logs/metrics.json',
+		JSON.stringify({MISSING_LINKS, requiredAttempts, errorCount}, null, 2),
 		{
 			createPath: true,
 		},
 	);
 
-	process.exit(1);
+	process.exit(exitCode);
 }
+
+await main();

@@ -29,6 +29,7 @@ type Props =
 	| {url: string; dir: 'cards'; set: string; id: string; large: boolean};
 
 export async function fetchAndStoreImageAndBlur(props: Props) {
+	if (MISSING_LINKS.includes(props.url)) return;
 	const filePath =
 		props.dir === 'pokedex'
 			? path.join('.images', 'pokedex', `${props.id}.webp`)
