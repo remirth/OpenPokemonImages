@@ -1,0 +1,22 @@
+export const PATCHED_URLS: Record<string, string> = {
+  'https://images.pokemontcg.io/ex5/102.png':
+    'https://den-cards.pokellector.com/56/Groudon.HL.102.png',
+  'https://images.pokemontcg.io/ex5/102_hires.png':
+    'https://den-cards.pokellector.com/56/Groudon.HL.102.png',
+  'https://images.pokemontcg.io/ecard2/67.png':
+    'https://images.pokemontcg.io/ecard2/67_hires.png',
+  'https://images.pokemontcg.io/hsp/HGSS18_hires.png':
+    'https://den-cards.pokellector.com/107/Tropical-Tidal-Wave.HGSS.18.6542.png',
+  'https://images.pokemontcg.io/hsp/HGSS18.png':
+    'https://den-cards.pokellector.com/107/Tropical-Tidal-Wave.HGSS.18.6542.png',
+  'https://images.pokemontcg.io/xyp/XY39_hires.png':
+    'https://images.pokemontcg.io/xyp/XY39.png',
+  'https://images.pokemontcg.io/xyp/XY46_hires.png':
+    'https://images.pokemontcg.io/xyp/XY46.png',
+  'https://images.pokemontcg.io/xyp/XY68_hires.png':
+    'https://images.pokemontcg.io/xyp/XY68.png',
+  'https://images.pokemontcg.io/svp/102.png':
+    'https://den-cards.pokellector.com/364/Offish.SVPEN.102.49344.png',
+  'https://images.pokemontcg.io/svp/102_hires.png':
+    'https://den-cards.pokellector.com/364/Offish.SVPEN.102.49344.png',
+};
