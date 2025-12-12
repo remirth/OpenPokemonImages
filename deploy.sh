@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SRC=".images"
+SRC="images"
 BRANCH="gh-pages"
 WT=".gh-pages"
 
@@ -23,8 +23,8 @@ rm -rf "$WT"/*
 # Recreate deploy .gitignore so unwanted files aren't committed
 cat >"$WT/.gitignore" <<'EOF'
 node_modules/
-.images
-logs
+.images/
+logs/
 *.map
 .DS_Store
 Thumbs.db
