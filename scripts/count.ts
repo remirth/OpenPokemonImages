@@ -1,4 +1,4 @@
-import { iterate } from './iterate';
+import {iterate} from './iterate';
 
 let i = 0;
 iterate(() => i++);
