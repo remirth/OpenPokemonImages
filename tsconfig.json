@@ -2,8 +2,7 @@
   "compilerOptions": {
     // Environment setup & latest features
     "lib": [
-      "ESNext",
-      "WebWorker"
+      "ESNext"
     ],
     "target": "ESNext",
     "module": "Preserve",
@@ -21,9 +20,6 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedIndexedAccess": true,
     "noImplicitOverride": true,
-    "types": [
-      "@cloudflare/workers-types"
-    ],
     // Some stricter flags (disabled by default)
     "noUnusedLocals": false,
     "noUnusedParameters": false,

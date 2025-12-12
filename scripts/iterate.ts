@@ -24,3 +24,12 @@ export function iterate(cb: (path: string) => void) {
     R.forEach(cb),
   );
 }
+
+export function* walk(dir: string = imagesPath): Generator<string> {
+  for (const name of fs.readdirSync(dir)) {
+    const full = path.join(dir, name);
+    const st = fs.statSync(full);
+    if (st.isDirectory()) yield* walk(full);
+    else if (st.isFile()) yield full;
+  }
+}
