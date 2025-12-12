@@ -8,7 +8,10 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.3.3",
-    "@types/bun": "latest"
+    "@cloudflare/workers-types": "^4.20251212.0",
+    "@types/bun": "latest",
+    "@types/mime-types": "^3.0.1",
+    "wrangler": "^4.54.0"
   },
   "peerDependencies": {
     "typescript": "^5"
@@ -16,6 +19,8 @@
   "dependencies": {
     "arktype": "^2.1.28",
     "change-case": "^5.4.4",
+    "hono": "^4.10.8",
+    "mime-types": "^3.0.2",
     "p-limit": "^7.2.0",
     "plaiceholder": "^3.0.0",
     "remeda": "^2.32.0",
